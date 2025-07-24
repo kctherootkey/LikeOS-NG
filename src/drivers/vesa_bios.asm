@@ -3,7 +3,7 @@
 
 [bits 32]
 
-global vesa_set_mode_1024x768x24
+global vesa_set_mode_1024x768
 global vesa_test_real_mode
 global vesa_get_lfb_address
 global vesa_get_mode_width
@@ -181,11 +181,11 @@ vesa_test_real_mode:
     pop ebp
     ret
 
-; Function: vesa_set_mode_1024x768x24
-; Purpose: Set VESA mode 1024x768x24 via proper real mode switching
+; Function: vesa_set_mode_1024x768
+; Purpose: Set VESA mode 1024x768 via proper real mode switching
 ; Parameters: None
 ; Returns: EAX (0 = success, -1 = failure)
-vesa_set_mode_1024x768x24:
+vesa_set_mode_1024x768:
     push ebp
     mov ebp, esp
     pushad
@@ -306,14 +306,14 @@ vesa_set_mode_1024x768x24:
     ; Check if this mode matches our requirements:
     ; - Width = 1024 (at offset 18)
     ; - Height = 768 (at offset 20)  
-    ; - BPP = 16 (at offset 25)
+    ; - BPP = 32 (at offset 25)
     ; - Linear framebuffer supported (bit 7 of attributes at offset 0)
     
     cmp word [vesa_mode_info + 18], 1024  ; Check width
     jne .next_mode
     cmp word [vesa_mode_info + 20], 768   ; Check height
     jne .next_mode
-    cmp byte [vesa_mode_info + 25], 16    ; Check BPP
+    cmp byte [vesa_mode_info + 25], 32    ; Check BPP
     jne .next_mode
     
     ; Check if linear framebuffer is supported (bit 7 of mode attributes)

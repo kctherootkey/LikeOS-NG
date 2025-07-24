@@ -8,7 +8,7 @@
 #endif
 
 // External assembly functions
-extern int vesa_set_mode_1024x768x24(void);
+extern int vesa_set_mode_1024x768(void);
 extern int vesa_test_real_mode(void);
 extern uint32_t vesa_get_lfb_address(void);
 extern uint32_t vesa_get_mode_width(void);
@@ -41,12 +41,12 @@ int vga_test_real_mode_switching(void) {
     }
 }
 
-// Set VESA 1024x768x24 mode
-int vga_set_vesa_mode_1024x768x24(void) {
-    kprintf("VGA: Attempting to set VESA 1024x768x16 mode...\n");
+// Set VESA 1024x768x32 mode
+int vga_set_vesa_mode_1024x768(void) {
+    kprintf("VGA: Attempting to set VESA 1024x768 mode...\n");
     
     // Call the assembly function that does the real mode switching
-    int result = vesa_set_mode_1024x768x24();
+    int result = vesa_set_mode_1024x768();
     
     if (result == 0) {
         // Get and display the mode information for debugging

@@ -78,7 +78,7 @@ void keyboard_handler(uint8_t scancode) {
                     // Special handling for 'g' - switch to VESA mode
                     kprintf("\nSwitching to VESA mode...\n");
                     
-                    if (vga_set_vesa_mode_1024x768x24() == 0) {
+                    if (vga_set_vesa_mode_1024x768() == 0) {
                         // Mode set successfully, blue screen is drawn automatically
                         // We're now in graphics mode - no more text output will be visible
                     } else {
