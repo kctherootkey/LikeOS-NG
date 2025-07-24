@@ -69,8 +69,8 @@ void keyboard_handler(uint8_t scancode) {
                 if (ascii == '\n') {
                     kprintf("\n");
                 } else if (ascii == '\b') {
-                    // Simple backspace handling (just print a visual indicator)
-                    kprintf("<BS>");
+                    // Send backspace character directly to kputchar for proper handling
+                    kputchar('\b');
                 } else if (ascii == '\t') {
                     kprintf("    ");  // 4 spaces for tab
                 } else {

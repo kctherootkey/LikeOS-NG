@@ -51,9 +51,23 @@ static void update_hardware_cursor(void) {
 
 void kputchar(char c) {
     volatile char *video = (char*)0xb8000;
+    
     if (c == '\n') {
         kprint_x = 0;
         kprint_y++;
+    } else if (c == '\b') {
+        // Handle backspace
+        if (kprint_x > 0) {
+            kprint_x--;
+        } else if (kprint_y > 0) {
+            // Move to end of previous line
+            kprint_y--;
+            kprint_x = VGA_WIDTH - 1;
+        }
+        // Clear the character at the new cursor position
+        int pos = (kprint_y * VGA_WIDTH + kprint_x) * 2;
+        video[pos] = ' ';      // Replace with space
+        video[pos + 1] = 0x07; // Keep same attribute
     } else {
         int pos = (kprint_y * VGA_WIDTH + kprint_x) * 2;
         video[pos] = c;
