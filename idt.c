@@ -37,6 +37,20 @@ static inline void lidt(void* base, uint16_t size) {
     __asm__ __volatile__("lidt %0" : : "m"(IDTR));
 }
 
+static void print_hex(uint32_t value) {
+    char hex_chars[] = "0123456789ABCDEF";
+    char buffer[9] = "00000000";
+    int i;
+    
+    for (i = 7; i >= 0; i--) {
+        buffer[i] = hex_chars[value & 0xF];
+        value >>= 4;
+    }
+    
+    kprintf("0x");
+    kprintf(buffer);
+}
+
 void idt_install(void) {
     idt_set_gate(0,  (uint32_t)isr0);   idt_set_gate(1,  (uint32_t)isr1);
     idt_set_gate(2,  (uint32_t)isr2);   idt_set_gate(3,  (uint32_t)isr3);
@@ -58,11 +72,11 @@ void idt_install(void) {
     lidt(idt, sizeof(idt) - 1);
 }
 
-void isr_common_stub(uint32_t interrupt_number) {
+void isr_common_stub(struct interrupt_frame* frame) {
     // Clear screen first for better visibility of the exception
     kclear_screen();
     
-    switch (interrupt_number) {
+    switch (frame->interrupt_number) {
         case 0:
             kprintf("EXCEPTION: Division by Zero!\n");
             break;
@@ -118,33 +132,106 @@ void isr_common_stub(uint32_t interrupt_number) {
             kprintf("EXCEPTION: SIMD Floating Point Exception!\n");
             break;
         default:
-            kprintf("EXCEPTION: Unknown interrupt ");
-            // Simple number printing since we don't have full printf
-            char num_str[12];
-            int i = 0;
-            uint32_t num = interrupt_number;
-            if (num == 0) {
-                num_str[i++] = '0';
-            } else {
-                char temp[12];
-                int j = 0;
-                while (num > 0) {
-                    temp[j++] = '0' + (num % 10);
-                    num /= 10;
-                }
-                while (j > 0) {
-                    num_str[i++] = temp[--j];
-                }
-            }
-            num_str[i] = '\0';
-            kprintf(num_str);
-            kprintf("!\n");
+            kprintf("EXCEPTION: Unknown interrupt!\n");
             break;
     }
     
-    // Halt the system after handling the exception
-    kprintf("System halted.\n");
-    for (;;) {
-        __asm__ __volatile__("hlt");
+    // Call the panic handler which will not return
+    kernel_panic(frame);
+}
+
+void kernel_panic(struct interrupt_frame* frame) {
+    // Show system information and provide a panic screen
+    kprintf("\n");
+    kprintf("=== KERNEL PANIC ===\n");
+    kprintf("The system has encountered a fatal error and cannot continue.\n");
+    kprintf("This exception occurred in kernel mode.\n\n");
+    
+    kprintf("System Information:\n");
+    kprintf("- Kernel: LikeOS-NG\n");
+    kprintf("- Architecture: x86 (32-bit)\n");
+    kprintf("- Exception Number: ");
+    
+    // Print the interrupt number
+    char num_str[12];
+    int i = 0;
+    uint32_t num = frame->interrupt_number;
+    if (num == 0) {
+        num_str[i++] = '0';
+    } else {
+        char temp[12];
+        int j = 0;
+        while (num > 0) {
+            temp[j++] = '0' + (num % 10);
+            num /= 10;
+        }
+        while (j > 0) {
+            num_str[i++] = temp[--j];
+        }
     }
+    num_str[i] = '\0';
+    kprintf(num_str);
+    kprintf("\n");
+    
+    // Show fault address (EIP where exception occurred)
+    kprintf("- Fault Address (EIP): ");
+    print_hex(frame->eip);
+    kprintf("\n");
+    
+    // Show error code if present
+    if (frame->interrupt_number == 8 || (frame->interrupt_number >= 10 && frame->interrupt_number <= 14)) {
+        kprintf("- Error Code: ");
+        print_hex(frame->error_code);
+        kprintf("\n");
+    }
+    kprintf("\n");
+    
+    // Show register information for debugging
+    show_register_dump(frame);
+    
+    kprintf("=== END PANIC SCREEN ===\n");
+    
+    // Halt the system completely - this function never returns
+    kprintf("\nSystem halted.\n");
+    __asm__ __volatile__(
+        "cli\n"           // Disable interrupts completely
+        "1: hlt\n"        // Halt processor  
+        "jmp 1b"          // Infinite loop - never return
+        ::: "memory"
+    );
+}
+
+void show_register_dump(struct interrupt_frame* frame) {
+    kprintf("Register Dump (at time of exception):\n");
+    kprintf("EAX=");
+    print_hex(frame->eax);
+    kprintf(" EBX=");
+    print_hex(frame->ebx);
+    kprintf(" ECX=");
+    print_hex(frame->ecx);
+    kprintf(" EDX=");
+    print_hex(frame->edx);
+    kprintf("\n");
+    
+    kprintf("ESP=");
+    print_hex(frame->esp);
+    kprintf(" EBP=");
+    print_hex(frame->ebp);
+    kprintf(" ESI=");
+    print_hex(frame->esi);
+    kprintf(" EDI=");
+    print_hex(frame->edi);
+    kprintf("\n");
+    
+    kprintf("EIP=");
+    print_hex(frame->eip);
+    kprintf(" CS=");
+    print_hex(frame->cs);
+    kprintf(" EFLAGS=");
+    print_hex(frame->eflags);
+    kprintf("\n");
+    
+    kprintf("SS=");
+    print_hex(frame->ss);
+    kprintf("\n\n");
 }

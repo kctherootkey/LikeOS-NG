@@ -1,30 +1,36 @@
 ; filepath: isr.asm
 [BITS 32]
 extern isr_common_stub
+
 %macro ISR_NOERR 1
 global isr%1
 isr%1:
     cli
-    pushad
-    push dword %1
-    call isr_common_stub
-    add esp, 4
-    popad
-    iretd
+    push dword 0          ; Push dummy error code
+    push dword %1         ; Push interrupt number
+    jmp isr_common
 %endmacro
 
 %macro ISR_ERR 1
 global isr%1
 isr%1:
     cli
-    pushad
-    push dword %1
-    call isr_common_stub
-    add esp, 4
-    popad
-    add esp, 4
-    iretd
+    push dword %1         ; Push interrupt number (error code already on stack)
+    jmp isr_common
 %endmacro
+
+isr_common:
+    pushad                ; Push all general purpose registers
+    
+    ; Create interrupt frame structure and pass pointer to C handler
+    mov eax, esp          ; ESP now points to our register structure
+    push eax              ; Pass pointer to registers as parameter
+    call isr_common_stub
+    add esp, 4            ; Clean up parameter
+    
+    popad                 ; Restore all general purpose registers
+    add esp, 8            ; Clean up interrupt number and error code
+    iretd                 ; Return from interrupt
 
 ISR_NOERR 0
 ISR_NOERR 1
