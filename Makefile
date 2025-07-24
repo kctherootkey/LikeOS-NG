@@ -15,6 +15,7 @@ KERNEL_LD=kernel.ld
 OS_IMG=os.img
 KPRINTF_OBJ=kprintf.o
 IDT_OBJ=idt.o
+KEYBOARD_OBJ=keyboard.o
 
 .PHONY: all clean run
 
@@ -35,8 +36,11 @@ $(KPRINTF_OBJ): kprintf.c kprintf.h
 $(IDT_OBJ): idt.c idt.h
 	$(CC) -m32 -ffreestanding -c idt.c -o idt.o
 
-$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(ISR_OBJ) $(KERNEL_LD)
-	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
+$(KEYBOARD_OBJ): keyboard.c keyboard.h
+	$(CC) -m32 -ffreestanding -c keyboard.c -o keyboard.o
+
+$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(ISR_OBJ) $(KERNEL_LD)
+	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
 	objcopy -O binary kernel.elf $(KERNEL_BIN)
 
 $(KERNEL_BIN_PADDED): $(KERNEL_BIN)

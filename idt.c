@@ -1,5 +1,6 @@
 #include "idt.h"
 #include "kprintf.h"
+#include "keyboard.h"
 
 struct idt_entry {
     uint16_t offset_low;
@@ -20,6 +21,12 @@ extern void isr16(void); extern void isr17(void); extern void isr18(void); exter
 extern void isr20(void); extern void isr21(void); extern void isr22(void); extern void isr23(void);
 extern void isr24(void); extern void isr25(void); extern void isr26(void); extern void isr27(void);
 extern void isr28(void); extern void isr29(void); extern void isr30(void); extern void isr31(void);
+
+// IRQ function declarations
+extern void irq0(void);  extern void irq1(void);  extern void irq2(void);  extern void irq3(void);
+extern void irq4(void);  extern void irq5(void);  extern void irq6(void);  extern void irq7(void);
+extern void irq8(void);  extern void irq9(void);  extern void irq10(void); extern void irq11(void);
+extern void irq12(void); extern void irq13(void); extern void irq14(void); extern void irq15(void);
 
 static void idt_set_gate(int n, uint32_t handler) {
     idt[n].offset_low = handler & 0xFFFF;
@@ -70,6 +77,107 @@ void idt_install(void) {
     idt_set_gate(30, (uint32_t)isr30);  idt_set_gate(31, (uint32_t)isr31);
 
     lidt(idt, sizeof(idt) - 1);
+}
+
+// PIC (Programmable Interrupt Controller) ports
+#define PIC1_COMMAND 0x20
+#define PIC1_DATA    0x21
+#define PIC2_COMMAND 0xA0
+#define PIC2_DATA    0xA1
+
+// PIC end-of-interrupt command
+#define PIC_EOI 0x20
+
+static void outb(uint16_t port, uint8_t value) {
+    __asm__ __volatile__("outb %0, %1" : : "a"(value), "Nd"(port));
+}
+
+static uint8_t inb(uint16_t port) {
+    uint8_t result;
+    __asm__ __volatile__("inb %1, %0" : "=a"(result) : "Nd"(port));
+    return result;
+}
+
+// Send end-of-interrupt signal to PIC
+void pic_send_eoi(uint8_t irq) {
+    if (irq >= 8) {
+        outb(PIC2_COMMAND, PIC_EOI);
+    }
+    outb(PIC1_COMMAND, PIC_EOI);
+}
+
+// Remap PIC interrupts to avoid conflict with CPU exceptions
+void pic_remap(void) {
+    // Save masks
+    uint8_t mask1 = inb(PIC1_DATA);
+    uint8_t mask2 = inb(PIC2_DATA);
+    
+    // Start initialization sequence
+    outb(PIC1_COMMAND, 0x11);
+    outb(PIC2_COMMAND, 0x11);
+    
+    // Set vector offsets
+    outb(PIC1_DATA, 32);  // IRQs 0-7 mapped to interrupts 32-39
+    outb(PIC2_DATA, 40);  // IRQs 8-15 mapped to interrupts 40-47
+    
+    // Configure cascading
+    outb(PIC1_DATA, 4);   // Tell PIC1 that PIC2 is at IRQ2
+    outb(PIC2_DATA, 2);   // Tell PIC2 its cascade identity
+    
+    // Set mode
+    outb(PIC1_DATA, 0x01);
+    outb(PIC2_DATA, 0x01);
+    
+    // Restore masks
+    outb(PIC1_DATA, mask1);
+    outb(PIC2_DATA, mask2);
+}
+
+void irq_set_mask(unsigned char irq_line) {
+    uint16_t port;
+    uint8_t value;
+    
+    if (irq_line < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        irq_line -= 8;
+    }
+    value = inb(port) | (1 << irq_line);
+    outb(port, value);
+}
+
+void irq_clear_mask(unsigned char irq_line) {
+    uint16_t port;
+    uint8_t value;
+    
+    if (irq_line < 8) {
+        port = PIC1_DATA;
+    } else {
+        port = PIC2_DATA;
+        irq_line -= 8;
+    }
+    value = inb(port) & ~(1 << irq_line);
+    outb(port, value);
+}
+
+void irq_install(void) {
+    // Remap PIC to avoid conflicts with CPU exceptions
+    pic_remap();
+    
+    // Install IRQ handlers in IDT
+    idt_set_gate(32, (uint32_t)irq0);   idt_set_gate(33, (uint32_t)irq1);
+    idt_set_gate(34, (uint32_t)irq2);   idt_set_gate(35, (uint32_t)irq3);
+    idt_set_gate(36, (uint32_t)irq4);   idt_set_gate(37, (uint32_t)irq5);
+    idt_set_gate(38, (uint32_t)irq6);   idt_set_gate(39, (uint32_t)irq7);
+    idt_set_gate(40, (uint32_t)irq8);   idt_set_gate(41, (uint32_t)irq9);
+    idt_set_gate(42, (uint32_t)irq10);  idt_set_gate(43, (uint32_t)irq11);
+    idt_set_gate(44, (uint32_t)irq12);  idt_set_gate(45, (uint32_t)irq13);
+    idt_set_gate(46, (uint32_t)irq14);  idt_set_gate(47, (uint32_t)irq15);
+    
+    // Enable timer and keyboard IRQs by default
+    irq_clear_mask(0);  // Timer
+    irq_clear_mask(1);  // Keyboard
 }
 
 void isr_common_stub(struct interrupt_frame* frame) {
@@ -138,6 +246,60 @@ void isr_common_stub(struct interrupt_frame* frame) {
     
     // Call the panic handler which will not return
     kernel_panic(frame);
+}
+
+void irq_common_stub(struct interrupt_frame* frame) {
+    // Calculate IRQ number (interrupt number - 32)
+    uint8_t irq = frame->interrupt_number - 32;
+    
+    // Handle specific IRQs
+    switch (irq) {
+        case 0:
+            // Timer interrupt - happens ~18.2 times per second
+            // kprintf("Timer tick\n");
+            break;
+        case 1:
+            // Keyboard interrupt
+            {
+                uint8_t scancode = inb(0x60);  // Read scancode from keyboard controller
+                keyboard_handler(scancode);
+            }
+            break;
+        case 14:
+            // Primary ATA hard disk
+            //kprintf("Primary ATA interrupt\n");
+            break;
+        case 15:
+            // Secondary ATA hard disk
+            // kprintf("Secondary ATA interrupt\n");
+            break;
+        default:
+            // Other IRQs
+            // kprintf("IRQ ");
+            char irq_str[4];
+            int i = 0;
+            if (irq == 0) {
+                irq_str[i++] = '0';
+            } else {
+                char temp[4];
+                int j = 0;
+                uint8_t num = irq;
+                while (num > 0) {
+                    temp[j++] = '0' + (num % 10);
+                    num /= 10;
+                }
+                while (j > 0) {
+                    irq_str[i++] = temp[--j];
+                }
+            }
+            irq_str[i] = '\0';
+            // kprintf(irq_str);
+            // kprintf(" received\n");
+            break;
+    }
+    
+    // Send EOI (End Of Interrupt) to PIC
+    pic_send_eoi(irq);
 }
 
 void kernel_panic(struct interrupt_frame* frame) {

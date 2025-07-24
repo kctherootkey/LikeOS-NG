@@ -10,5 +10,9 @@ struct interrupt_frame {
 
 void idt_install(void);
 void isr_common_stub(struct interrupt_frame* frame);
+void irq_common_stub(struct interrupt_frame* frame);
 void show_register_dump(struct interrupt_frame* frame);
 void kernel_panic(struct interrupt_frame* frame) __attribute__((noreturn));
+void irq_install(void);
+void irq_set_mask(unsigned char irq_line);
+void irq_clear_mask(unsigned char irq_line);
