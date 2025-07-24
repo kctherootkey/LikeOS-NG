@@ -13,6 +13,29 @@ static void kprint_unsigned_padded(unsigned int num, int base, int uppercase, in
 static int kprint_x = 0;
 static int kprint_y = 0;
 
+// Function to scroll the screen up by one line
+static void scroll_screen(void) {
+    volatile char *video = (char*)0xb8000;
+    
+    // Move all lines up by one line
+    for (int line = 0; line < VGA_HEIGHT - 1; line++) {
+        for (int col = 0; col < VGA_WIDTH; col++) {
+            int dest_pos = (line * VGA_WIDTH + col) * 2;
+            int src_pos = ((line + 1) * VGA_WIDTH + col) * 2;
+            
+            video[dest_pos] = video[src_pos];         // Character
+            video[dest_pos + 1] = video[src_pos + 1]; // Attribute
+        }
+    }
+    
+    // Clear the last line
+    for (int col = 0; col < VGA_WIDTH; col++) {
+        int pos = ((VGA_HEIGHT - 1) * VGA_WIDTH + col) * 2;
+        video[pos] = ' ';      // Space character
+        video[pos + 1] = 0x07; // Attribute (light gray on black)
+    }
+}
+
 // Function to set hardware cursor position
 static void update_hardware_cursor(void) {
     unsigned short position = (kprint_y * VGA_WIDTH) + kprint_x;
@@ -42,7 +65,8 @@ void kputchar(char c) {
         }
     }
     if (kprint_y >= VGA_HEIGHT) {
-        kprint_y = 0; // or: implement scrolling
+        scroll_screen();
+        kprint_y = VGA_HEIGHT - 1; // Keep cursor on the last line
     }
     
     // Update hardware cursor after each character
