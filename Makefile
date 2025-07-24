@@ -16,6 +16,7 @@ OS_IMG=os.img
 KPRINTF_OBJ=kprintf.o
 IDT_OBJ=idt.o
 KEYBOARD_OBJ=keyboard.o
+PAGING_OBJ=paging.o
 
 .PHONY: all clean run
 
@@ -39,8 +40,11 @@ $(IDT_OBJ): idt.c idt.h
 $(KEYBOARD_OBJ): keyboard.c keyboard.h
 	$(CC) -m32 -ffreestanding -c keyboard.c -o keyboard.o
 
-$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(ISR_OBJ) $(KERNEL_LD)
-	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
+$(PAGING_OBJ): paging.c paging.h
+	$(CC) -m32 -ffreestanding -c paging.c -o paging.o
+
+$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(ISR_OBJ) $(KERNEL_LD)
+	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
 	objcopy -O binary kernel.elf $(KERNEL_BIN)
 
 $(KERNEL_BIN_PADDED): $(KERNEL_BIN)
@@ -54,4 +58,4 @@ run: $(OS_IMG)
 	qemu-system-x86_64 -drive format=raw,file=$(OS_IMG)
 
 clean:
-	rm -f *.o *.bin *.img kernel_padded.bin
+	rm -f *.o *.bin *.img kernel_padded.bin kernel.elf

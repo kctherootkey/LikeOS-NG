@@ -3,6 +3,7 @@ void kernel_main(void) __attribute__((section(".text")));
 #include "kprintf.h"
 #include "idt.h"
 #include "keyboard.h"
+#include "paging.h"
 
 void kernel_main(void) {
     kclear_screen();
@@ -10,6 +11,14 @@ void kernel_main(void) {
     kprintf("Enabled protected mode.\n");
     idt_install();
     kprintf("IDT initialized.\n");
+    
+    kprintf("Initializing memory management...\n");
+    paging_init();
+    setup_identity_mapping();
+    setup_kernel_heap();
+    enable_pae_paging();
+    kprintf("PAE paging is now active.\n");
+    
     keyboard_init();
     kprintf("Keyboard initialized.\n");
     irq_install();

@@ -1,4 +1,11 @@
+#include <stdarg.h>
 #include "kprintf.h"
+
+// Helper function declarations
+static void kprint_number(int num, int base, int uppercase);
+static void kprint_unsigned(unsigned int num, int base, int uppercase);
+static void kprint_number_padded(int num, int base, int padding);
+static void kprint_unsigned_padded(unsigned int num, int base, int uppercase, int padding);
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
@@ -42,9 +49,165 @@ void kputchar(char c) {
     update_hardware_cursor();
 }
 
-void kprintf(const char *s) {
-    while (*s) {
-        kputchar(*s++);
+void kprintf(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    
+    while (*format) {
+        if (*format == '%') {
+            format++;
+            switch (*format) {
+                case 'd': {
+                    int num = va_arg(args, int);
+                    kprint_number(num, 10, 0);
+                    break;
+                }
+                case 'u': {
+                    unsigned int num = va_arg(args, unsigned int);
+                    kprint_unsigned(num, 10, 0);
+                    break;
+                }
+                case 'x': {
+                    unsigned int num = va_arg(args, unsigned int);
+                    kprint_unsigned(num, 16, 0);
+                    break;
+                }
+                case 'X': {
+                    unsigned int num = va_arg(args, unsigned int);
+                    kprint_unsigned(num, 16, 1);
+                    break;
+                }
+                case 'p': {
+                    void* ptr = va_arg(args, void*);
+                    kputchar('0');
+                    kputchar('x');
+                    kprint_unsigned((unsigned int)ptr, 16, 0);
+                    break;
+                }
+                case 'c': {
+                    char c = (char)va_arg(args, int);
+                    kputchar(c);
+                    break;
+                }
+                case 's': {
+                    const char* str = va_arg(args, const char*);
+                    if (str) {
+                        while (*str) {
+                            kputchar(*str++);
+                        }
+                    } else {
+                        // Print "(null)" without recursion
+                        kputchar('(');
+                        kputchar('n');
+                        kputchar('u');
+                        kputchar('l');
+                        kputchar('l');
+                        kputchar(')');
+                    }
+                    break;
+                }
+                case '%': {
+                    kputchar('%');
+                    break;
+                }
+                case '0': {
+                    // Handle zero-padding (e.g., %08x)
+                    int padding = 0;
+                    format++;
+                    while (*format >= '0' && *format <= '9') {
+                        padding = padding * 10 + (*format - '0');
+                        format++;
+                    }
+                    if (*format == 'x') {
+                        unsigned int num = va_arg(args, unsigned int);
+                        kprint_unsigned_padded(num, 16, 0, padding);
+                    } else if (*format == 'X') {
+                        unsigned int num = va_arg(args, unsigned int);
+                        kprint_unsigned_padded(num, 16, 1, padding);
+                    } else if (*format == 'd') {
+                        int num = va_arg(args, int);
+                        kprint_number_padded(num, 10, padding);
+                    }
+                    break;
+                }
+                default:
+                    kputchar('%');
+                    kputchar(*format);
+                    break;
+            }
+        } else {
+            kputchar(*format);
+        }
+        format++;
+    }
+    
+    va_end(args);
+}
+
+static void kprint_number(int num, int base, int uppercase) {
+    if (num < 0) {
+        kputchar('-');
+        num = -num;
+    }
+    kprint_unsigned((unsigned int)num, base, uppercase);
+}
+
+static void kprint_unsigned(unsigned int num, int base, int uppercase) {
+    char digits[] = "0123456789abcdef";
+    char upper_digits[] = "0123456789ABCDEF";
+    char* digit_set = uppercase ? upper_digits : digits;
+    
+    if (num == 0) {
+        kputchar('0');
+        return;
+    }
+    
+    char buffer[32];
+    int i = 0;
+    
+    while (num > 0) {
+        buffer[i++] = digit_set[num % base];
+        num /= base;
+    }
+    
+    while (i > 0) {
+        kputchar(buffer[--i]);
+    }
+}
+
+static void kprint_number_padded(int num, int base, int padding) {
+    if (num < 0) {
+        kputchar('-');
+        num = -num;
+        padding--;
+    }
+    kprint_unsigned_padded((unsigned int)num, base, 0, padding);
+}
+
+static void kprint_unsigned_padded(unsigned int num, int base, int uppercase, int padding) {
+    char digits[] = "0123456789abcdef";
+    char upper_digits[] = "0123456789ABCDEF";
+    char* digit_set = uppercase ? upper_digits : digits;
+    
+    char buffer[32];
+    int i = 0;
+    
+    if (num == 0) {
+        buffer[i++] = '0';
+    } else {
+        while (num > 0) {
+            buffer[i++] = digit_set[num % base];
+            num /= base;
+        }
+    }
+    
+    // Add padding
+    while (i < padding) {
+        buffer[i++] = '0';
+    }
+    
+    while (i > 0) {
+        kputchar(buffer[--i]);
     }
 }
 
