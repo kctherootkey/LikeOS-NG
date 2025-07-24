@@ -4,6 +4,7 @@ void kernel_main(void) __attribute__((section(".text")));
 #include "idt.h"
 #include "keyboard.h"
 #include "paging.h"
+#include "pmm.h"
 
 void kernel_main(void) {
     kclear_screen();
@@ -13,6 +14,10 @@ void kernel_main(void) {
     kprintf("IDT initialized.\n");
     
     kprintf("Initializing memory management...\n");
+    pmm_init();
+    pmm_print_stats();
+    pmm_print_memory_map();
+    
     paging_init();
     setup_identity_mapping();
     setup_kernel_heap();

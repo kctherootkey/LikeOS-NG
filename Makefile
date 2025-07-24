@@ -17,6 +17,7 @@ KPRINTF_OBJ=kprintf.o
 IDT_OBJ=idt.o
 KEYBOARD_OBJ=keyboard.o
 PAGING_OBJ=paging.o
+PMM_OBJ=pmm.o
 
 .PHONY: all clean run
 
@@ -43,8 +44,11 @@ $(KEYBOARD_OBJ): keyboard.c keyboard.h
 $(PAGING_OBJ): paging.c paging.h
 	$(CC) -m32 -ffreestanding -c paging.c -o paging.o
 
-$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(ISR_OBJ) $(KERNEL_LD)
-	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
+$(PMM_OBJ): pmm.c pmm.h
+	$(CC) -m32 -ffreestanding -c pmm.c -o pmm.o
+
+$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) $(KERNEL_LD)
+	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
 	objcopy -O binary kernel.elf $(KERNEL_BIN)
 
 $(KERNEL_BIN_PADDED): $(KERNEL_BIN)
