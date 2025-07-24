@@ -8,10 +8,13 @@ BOOTLOADER=bootloader.asm
 BOOTLOADER_BIN=bootloader.bin
 KERNEL_SRC=kernel.c
 KERNEL_OBJ=kernel.o
+ISR_OBJ=isr.o
 KERNEL_BIN=kernel.bin
 KERNEL_BIN_PADDED=kernel_padded.bin
 KERNEL_LD=kernel.ld
 OS_IMG=os.img
+KPRINTF_OBJ=kprintf.o
+IDT_OBJ=idt.o
 
 .PHONY: all clean run
 
@@ -23,8 +26,17 @@ $(BOOTLOADER_BIN): $(BOOTLOADER)
 $(KERNEL_OBJ): $(KERNEL_SRC)
 	$(CC) -m32 -ffreestanding -c $(KERNEL_SRC) -o $(KERNEL_OBJ)
 
-$(KERNEL_BIN): $(KERNEL_OBJ) $(KERNEL_LD)
-	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) -o kernel.elf -nostdlib
+$(ISR_OBJ): isr.asm
+	$(AS) -f elf32 isr.asm -o $(ISR_OBJ)
+
+$(KPRINTF_OBJ): kprintf.c kprintf.h
+	$(CC) -m32 -ffreestanding -c kprintf.c -o kprintf.o
+
+$(IDT_OBJ): idt.c idt.h
+	$(CC) -m32 -ffreestanding -c idt.c -o idt.o
+
+$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(ISR_OBJ) $(KERNEL_LD)
+	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
 	objcopy -O binary kernel.elf $(KERNEL_BIN)
 
 $(KERNEL_BIN_PADDED): $(KERNEL_BIN)
