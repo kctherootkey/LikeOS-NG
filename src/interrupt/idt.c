@@ -1,6 +1,6 @@
-#include "idt.h"
-#include "kprintf.h"
-#include "keyboard.h"
+#include "interrupt/idt.h"
+#include "lib/kprintf.h"
+#include "drivers/keyboard.h"
 
 struct idt_entry {
     uint16_t offset_low;

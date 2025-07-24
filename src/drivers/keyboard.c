@@ -1,5 +1,5 @@
-#include "keyboard.h"
-#include "kprintf.h"
+#include "drivers/keyboard.h"
+#include "lib/kprintf.h"
 
 // Scancode to ASCII conversion table (US QWERTY layout)
 static char scancode_to_ascii[] = {

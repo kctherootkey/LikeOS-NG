@@ -1,5 +1,5 @@
-#include "paging.h"
-#include "kprintf.h"
+#include "memory/paging.h"
+#include "lib/kprintf.h"
 #include <stdint.h>
 
 #define NULL ((void*)0)

@@ -3,10 +3,26 @@ AS=nasm
 CC=gcc
 LD=ld
 
+# Directories
+SRC_DIR=src
+BOOT_DIR=$(SRC_DIR)/boot
+KERNEL_DIR=$(SRC_DIR)/kernel
+MEMORY_DIR=$(SRC_DIR)/memory
+INTERRUPT_DIR=$(SRC_DIR)/interrupt
+DRIVERS_DIR=$(SRC_DIR)/drivers
+LIB_DIR=$(SRC_DIR)/lib
+INCLUDE_DIR=include
+
+# Include paths
+INCLUDES=-I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/memory -I$(INCLUDE_DIR)/interrupt -I$(INCLUDE_DIR)/drivers -I$(INCLUDE_DIR)/lib
+
+# Compiler flags
+CFLAGS=-m32 -ffreestanding $(INCLUDES) -Wall -Wextra
+
 # Files
-BOOTLOADER=bootloader.asm
+BOOTLOADER=$(BOOT_DIR)/bootloader.asm
 BOOTLOADER_BIN=bootloader.bin
-KERNEL_SRC=kernel.c
+KERNEL_SRC=$(KERNEL_DIR)/kernel.c
 KERNEL_OBJ=kernel.o
 ISR_OBJ=isr.o
 KERNEL_BIN=kernel.bin
@@ -27,25 +43,25 @@ $(BOOTLOADER_BIN): $(BOOTLOADER)
 	$(AS) -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
 
 $(KERNEL_OBJ): $(KERNEL_SRC)
-	$(CC) -m32 -ffreestanding -c $(KERNEL_SRC) -o $(KERNEL_OBJ)
+	$(CC) $(CFLAGS) -c $(KERNEL_SRC) -o $(KERNEL_OBJ)
 
-$(ISR_OBJ): isr.asm
-	$(AS) -f elf32 isr.asm -o $(ISR_OBJ)
+$(ISR_OBJ): $(INTERRUPT_DIR)/isr.asm
+	$(AS) -f elf32 $(INTERRUPT_DIR)/isr.asm -o $(ISR_OBJ)
 
-$(KPRINTF_OBJ): kprintf.c kprintf.h
-	$(CC) -m32 -ffreestanding -c kprintf.c -o kprintf.o
+$(KPRINTF_OBJ): $(LIB_DIR)/kprintf.c $(INCLUDE_DIR)/lib/kprintf.h
+	$(CC) $(CFLAGS) -c $(LIB_DIR)/kprintf.c -o $(KPRINTF_OBJ)
 
-$(IDT_OBJ): idt.c idt.h
-	$(CC) -m32 -ffreestanding -c idt.c -o idt.o
+$(IDT_OBJ): $(INTERRUPT_DIR)/idt.c $(INCLUDE_DIR)/interrupt/idt.h
+	$(CC) $(CFLAGS) -c $(INTERRUPT_DIR)/idt.c -o $(IDT_OBJ)
 
-$(KEYBOARD_OBJ): keyboard.c keyboard.h
-	$(CC) -m32 -ffreestanding -c keyboard.c -o keyboard.o
+$(KEYBOARD_OBJ): $(DRIVERS_DIR)/keyboard.c $(INCLUDE_DIR)/drivers/keyboard.h
+	$(CC) $(CFLAGS) -c $(DRIVERS_DIR)/keyboard.c -o $(KEYBOARD_OBJ)
 
-$(PAGING_OBJ): paging.c paging.h
-	$(CC) -m32 -ffreestanding -c paging.c -o paging.o
+$(PAGING_OBJ): $(MEMORY_DIR)/paging.c $(INCLUDE_DIR)/memory/paging.h
+	$(CC) $(CFLAGS) -c $(MEMORY_DIR)/paging.c -o $(PAGING_OBJ)
 
-$(PMM_OBJ): pmm.c pmm.h
-	$(CC) -m32 -ffreestanding -c pmm.c -o pmm.o
+$(PMM_OBJ): $(MEMORY_DIR)/pmm.c $(INCLUDE_DIR)/memory/pmm.h
+	$(CC) $(CFLAGS) -c $(MEMORY_DIR)/pmm.c -o $(PMM_OBJ)
 
 $(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) $(KERNEL_LD)
 	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib

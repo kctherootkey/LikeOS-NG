@@ -1,10 +1,10 @@
 void kernel_main(void) __attribute__((section(".text")));
 #include <stdint.h>
-#include "kprintf.h"
-#include "idt.h"
-#include "keyboard.h"
-#include "paging.h"
-#include "pmm.h"
+#include "lib/kprintf.h"
+#include "interrupt/idt.h"
+#include "drivers/keyboard.h"
+#include "memory/paging.h"
+#include "memory/pmm.h"
 
 void kernel_main(void) {
     kclear_screen();
