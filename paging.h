@@ -66,6 +66,7 @@ void* allocate_physical_page(void);
 void free_physical_page(void* page);
 void setup_identity_mapping(void);
 void setup_kernel_heap(void);
+void get_memory_stats(void);
 
 // Helper function (should be in kprintf.h but avoiding circular dependencies)
 void print_hex(uint32_t value);

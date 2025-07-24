@@ -2,6 +2,8 @@
 #include "kprintf.h"
 #include <stdint.h>
 
+#define NULL ((void*)0)
+
 // Global paging structures
 static pdpt_t* pdpt;
 static page_directory_t* page_directories[PDPT_ENTRIES];
@@ -13,20 +15,112 @@ static physical_memory_manager_t pmm;
 #define HEAP_START   0x20000     // Heap starts right after kernel
 #define HEAP_SIZE    0x1000000   // 16MB heap
 
-// Simple physical memory allocator
-static uint32_t next_free_page = HEAP_START + HEAP_SIZE;
+// Physical memory management with free list
+typedef struct free_page {
+    struct free_page* next;
+} free_page_t;
 
-static void* allocate_physical_page_simple(void) {
-    void* page = (void*)next_free_page;
-    next_free_page += PAGE_SIZE;
+static free_page_t* free_list_head = NULL;
+static uint32_t next_free_page = HEAP_START + HEAP_SIZE;
+static uint32_t total_pages_allocated = 0;
+static uint32_t total_pages_freed = 0;
+
+// Initialize the free list with a pool of pages
+static void init_free_list(void) {
+    kprintf("Initializing physical memory free list...\n");
     
-    // Zero the page
+    // Start with 1024 pages (4MB) in the free list
+    uint32_t initial_pool_size = 1024;
+    uint32_t pool_start = next_free_page;
+    
+    for (uint32_t i = 0; i < initial_pool_size; i++) {
+        uint32_t page_addr = pool_start + (i * PAGE_SIZE);
+        free_page_t* page = (free_page_t*)page_addr;
+        
+        // Zero the page first
+        uint32_t* ptr = (uint32_t*)page_addr;
+        for (int j = 0; j < PAGE_SIZE / 4; j++) {
+            ptr[j] = 0;
+        }
+        
+        // Link it into the free list
+        page->next = free_list_head;
+        free_list_head = page;
+    }
+    
+    next_free_page += initial_pool_size * PAGE_SIZE;
+    kprintf("Free list initialized with %u pages\n", initial_pool_size);
+}
+
+static void* allocate_from_free_list(void) {
+    if (free_list_head == NULL) {
+        // Free list is empty, allocate a new page from the pool
+        void* page = (void*)next_free_page;
+        next_free_page += PAGE_SIZE;
+        
+        // Zero the page
+        uint32_t* ptr = (uint32_t*)page;
+        for (int i = 0; i < PAGE_SIZE / 4; i++) {
+            ptr[i] = 0;
+        }
+        
+        total_pages_allocated++;
+        return page;
+    }
+    
+    // Take a page from the free list
+    free_page_t* page = free_list_head;
+    free_list_head = page->next;
+    
+    // Zero the page before returning it
     uint32_t* ptr = (uint32_t*)page;
     for (int i = 0; i < PAGE_SIZE / 4; i++) {
         ptr[i] = 0;
     }
     
-    return page;
+    total_pages_allocated++;
+    return (void*)page;
+}
+
+static void add_to_free_list(void* page_addr) {
+    if (page_addr == NULL) return;
+    
+    // Ensure the page is page-aligned
+    uint32_t addr = (uint32_t)page_addr;
+    if (addr & (PAGE_SIZE - 1)) {
+        kprintf("Warning: Freeing non-aligned page at 0x%x\n", addr);
+        return;
+    }
+    
+    free_page_t* page = (free_page_t*)page_addr;
+    
+    // Add to the front of the free list
+    page->next = free_list_head;
+    free_list_head = page;
+    
+    total_pages_freed++;
+}
+
+// Get memory statistics
+void get_memory_stats(void) {
+    kprintf("Memory Statistics:\n");
+    kprintf("  Total pages allocated: %u\n", total_pages_allocated);
+    kprintf("  Total pages freed: %u\n", total_pages_freed);
+    kprintf("  Pages in use: %u\n", total_pages_allocated - total_pages_freed);
+    
+    // Count free pages in the list
+    uint32_t free_count = 0;
+    free_page_t* current = free_list_head;
+    while (current != NULL) {
+        free_count++;
+        current = current->next;
+        // Prevent infinite loops in case of corruption
+        if (free_count > 10000) {
+            kprintf("  Free pages: >10000 (list may be corrupted)\n");
+            return;
+        }
+    }
+    kprintf("  Free pages available: %u\n", free_count);
 }
 
 static uint64_t get_cr3(void) {
@@ -56,8 +150,11 @@ static void enable_paging_bit(void) {
 void paging_init(void) {
     kprintf("Initializing PAE paging...\n");
     
+    // Initialize the physical memory free list first
+    init_free_list();
+    
     // Allocate PDPT (must be 32-byte aligned)
-    pdpt = (pdpt_t*)allocate_physical_page_simple();
+    pdpt = (pdpt_t*)allocate_from_free_list();
     if (((uint32_t)pdpt) & 0x1F) {
         kprintf("ERROR: PDPT not properly aligned!\n");
         return;
@@ -65,7 +162,7 @@ void paging_init(void) {
     
     // Initialize PDPT entries
     for (int i = 0; i < PDPT_ENTRIES; i++) {
-        page_directories[i] = (page_directory_t*)allocate_physical_page_simple();
+        page_directories[i] = (page_directory_t*)allocate_from_free_list();
         
         pdpt->entries[i] = (uint64_t)(uint32_t)page_directories[i] | PAGE_PRESENT;
         
@@ -76,14 +173,15 @@ void paging_init(void) {
 }
 
 void setup_identity_mapping(void) {
-    kprintf("Setting up identity mapping for first 4MB...\n");
+    kprintf("Setting up identity mapping for first 32MB...\n");
     
-    // Map first 4MB (1024 pages) identity mapped
-    for (uint32_t addr = 0; addr < 0x400000; addr += PAGE_SIZE) {
+    // Map first 32MB (8192 pages) identity mapped to cover our memory needs
+    // This covers kernel, heap, and free list areas
+    for (uint32_t addr = 0; addr < 0x2000000; addr += PAGE_SIZE) {
         map_page(addr, addr, PAGE_PRESENT | PAGE_WRITABLE);
     }
     
-    kprintf("Identity mapping complete.\n");
+    kprintf("Identity mapping complete (32MB mapped).\n");
 }
 
 int map_page(uint32_t virtual_addr, uint64_t physical_addr, uint32_t flags) {
@@ -100,7 +198,7 @@ int map_page(uint32_t virtual_addr, uint64_t physical_addr, uint32_t flags) {
     // Check if page table exists
     if (!(pd->entries[vaddr.pd_index] & PAGE_PRESENT)) {
         // Allocate new page table
-        page_table_t* pt = (page_table_t*)allocate_physical_page_simple();
+        page_table_t* pt = (page_table_t*)allocate_from_free_list();
         pd->entries[vaddr.pd_index] = (uint64_t)(uint32_t)pt | PAGE_PRESENT | PAGE_WRITABLE | (flags & PAGE_USER);
     }
     
@@ -174,12 +272,11 @@ void enable_pae_paging(void) {
 }
 
 void* allocate_physical_page(void) {
-    return allocate_physical_page_simple();
+    return allocate_from_free_list();
 }
 
 void free_physical_page(void* page) {
-    // Simple implementation - in a real kernel you'd maintain a free list
-    (void)page;
+    add_to_free_list(page);
 }
 
 void setup_kernel_heap(void) {

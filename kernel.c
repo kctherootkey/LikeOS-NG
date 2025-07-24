@@ -18,6 +18,7 @@ void kernel_main(void) {
     setup_kernel_heap();
     enable_pae_paging();
     kprintf("PAE paging is now active.\n");
+    get_memory_stats();
     
     keyboard_init();
     kprintf("Keyboard initialized.\n");

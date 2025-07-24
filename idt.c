@@ -224,9 +224,31 @@ void isr_common_stub(struct interrupt_frame* frame) {
         case 13:
             kprintf("EXCEPTION: General Protection Fault!\n");
             break;
-        case 14:
+        case 14: {
+            // Page Fault - get additional information
+            uint32_t faulting_address;
+            __asm__ __volatile__("mov %%cr2, %%eax; mov %%eax, %0" : "=m"(faulting_address) : : "eax");
+            
             kprintf("EXCEPTION: Page Fault!\n");
+            kprintf("Faulting address: 0x%x\n", faulting_address);
+            kprintf("Error code: 0x%x\n", frame->error_code);
+            
+            // Decode error code
+            kprintf("Fault details: ");
+            if (frame->error_code & 0x1) kprintf("Page was present ");
+            else kprintf("Page not present ");
+            
+            if (frame->error_code & 0x2) kprintf("Write access ");
+            else kprintf("Read access ");
+            
+            if (frame->error_code & 0x4) kprintf("User mode ");
+            else kprintf("Kernel mode ");
+            
+            if (frame->error_code & 0x8) kprintf("Reserved bit violation ");
+            if (frame->error_code & 0x10) kprintf("Instruction fetch ");
+            kprintf("\n");
             break;
+        }
         case 16:
             kprintf("EXCEPTION: Floating Point Exception!\n");
             break;
