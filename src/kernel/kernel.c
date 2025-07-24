@@ -3,6 +3,7 @@ void kernel_main(void) __attribute__((section(".text")));
 #include "lib/kprintf.h"
 #include "interrupt/idt.h"
 #include "drivers/keyboard.h"
+#include "drivers/vga.h"
 #include "memory/paging.h"
 #include "memory/pmm.h"
 
@@ -27,6 +28,10 @@ void kernel_main(void) {
     
     keyboard_init();
     kprintf("Keyboard initialized.\n");
+    
+    vga_init();
+    kprintf("VGA driver initialized.\n");
+    
     irq_install();
     kprintf("IRQ handlers installed.\n");
     kprintf("Enabling interrupts...\n");
@@ -35,6 +40,7 @@ void kernel_main(void) {
     __asm__ __volatile__("sti");
     
     kprintf("System ready.\n");
+    kprintf("Press 'g' to switch to VESA 1024x768x24 graphics mode.\n");
     
     // Remove the division by zero test for now since we want to test IRQs
     // int i = 1/0;

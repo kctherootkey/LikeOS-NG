@@ -34,6 +34,8 @@ IDT_OBJ=idt.o
 KEYBOARD_OBJ=keyboard.o
 PAGING_OBJ=paging.o
 PMM_OBJ=pmm.o
+VGA_OBJ=vga.o
+VESA_BIOS_OBJ=vesa_bios.o
 
 .PHONY: all clean run
 
@@ -63,8 +65,14 @@ $(PAGING_OBJ): $(MEMORY_DIR)/paging.c $(INCLUDE_DIR)/memory/paging.h
 $(PMM_OBJ): $(MEMORY_DIR)/pmm.c $(INCLUDE_DIR)/memory/pmm.h
 	$(CC) $(CFLAGS) -c $(MEMORY_DIR)/pmm.c -o $(PMM_OBJ)
 
-$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) $(KERNEL_LD)
-	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
+$(VGA_OBJ): $(DRIVERS_DIR)/vga.c $(INCLUDE_DIR)/drivers/vga.h
+	$(CC) $(CFLAGS) -c $(DRIVERS_DIR)/vga.c -o $(VGA_OBJ)
+
+$(VESA_BIOS_OBJ): $(DRIVERS_DIR)/vesa_bios.asm
+	$(AS) -f elf32 $(DRIVERS_DIR)/vesa_bios.asm -o $(VESA_BIOS_OBJ)
+
+$(KERNEL_BIN): $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(VGA_OBJ) $(VESA_BIOS_OBJ) $(ISR_OBJ) $(KERNEL_LD)
+	$(LD) -m elf_i386 -T $(KERNEL_LD) $(KERNEL_OBJ) $(KPRINTF_OBJ) $(IDT_OBJ) $(KEYBOARD_OBJ) $(PAGING_OBJ) $(PMM_OBJ) $(VGA_OBJ) $(VESA_BIOS_OBJ) $(ISR_OBJ) -o kernel.elf -nostdlib
 	objcopy -O binary kernel.elf $(KERNEL_BIN)
 
 $(KERNEL_BIN_PADDED): $(KERNEL_BIN)

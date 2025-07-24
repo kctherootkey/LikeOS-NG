@@ -1,4 +1,5 @@
 #include "drivers/keyboard.h"
+#include "drivers/vga.h"
 #include "lib/kprintf.h"
 
 // Scancode to ASCII conversion table (US QWERTY layout)
@@ -73,6 +74,20 @@ void keyboard_handler(uint8_t scancode) {
                     kputchar('\b');
                 } else if (ascii == '\t') {
                     kprintf("    ");  // 4 spaces for tab
+                } else if (ascii == 'g' || ascii == 'G') {
+                    // Special handling for 'g' - test and switch to VESA mode
+                    //kprintf("\nTesting real mode switching first...\n");
+                    
+                    // First test real mode switching without VESA calls
+//                    if (vga_test_real_mode_switching() == 0) {
+//                        kprintf("Real mode test passed! Now attempting VESA mode...\n");
+                        if (vga_set_vesa_mode_1024x768x24() == 0) {
+                            // Mode set successfully, now clear screen to blue
+                            vga_clear_screen_blue();
+                        }
+//                    } else {
+//                        kprintf("Real mode test failed! Not attempting VESA mode.\n");
+//                    }
                 } else {
                     kputchar(ascii);
                 }
