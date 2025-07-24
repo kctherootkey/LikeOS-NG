@@ -1,5 +1,5 @@
 ; filepath: bootloader.asm
-; Minimal 512-byte bootloader for x86, loads 32 KiB kernel to 0x100000 and jumps there (Protected Mode)
+; Minimal 512-byte bootloader for x86, loads 32 KiB kernel to 0x8000 and jumps there (Protected Mode)
 BITS 16
 ORG 0x7C00
 
@@ -16,7 +16,7 @@ start:
     mov si, kernel_load_msg
     call print_string
 
-    ; Load kernel (64 sectors) to 0x100000
+    ; Load kernel (64 sectors) to 0x8000
     mov ax, 0x0000
     mov es, ax
     mov bx, 0x8000
@@ -87,7 +87,7 @@ protected_mode:
     ;mov ecx, 16          ; Number of bytes
     ;call hexdump_pm
 
-    ; Jump to kernel at 0x100000
+    ; Jump to kernel at 0x8000
     jmp 0x08:0x8000
 
 hexdigit_table db '0123456789ABCDEF'

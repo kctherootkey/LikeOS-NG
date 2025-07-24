@@ -7,11 +7,11 @@ static pdpt_t* pdpt;
 static page_directory_t* page_directories[PDPT_ENTRIES];
 static physical_memory_manager_t pmm;
 
-// Memory layout (you may need to adjust these based on your kernel)
-#define KERNEL_START 0x100000
-#define KERNEL_END   0x200000
-#define HEAP_START   0x200000
-#define HEAP_SIZE    0x1000000  // 16MB heap
+// Memory layout (adjusted to match kernel.ld and bootloader)
+#define KERNEL_START 0x8000      // Kernel starts at 32KB (matches kernel.ld and bootloader)
+#define KERNEL_END   0x20000     // Kernel ends at 128KB (giving 96KB for kernel)
+#define HEAP_START   0x20000     // Heap starts right after kernel
+#define HEAP_SIZE    0x1000000   // 16MB heap
 
 // Simple physical memory allocator
 static uint32_t next_free_page = HEAP_START + HEAP_SIZE;
