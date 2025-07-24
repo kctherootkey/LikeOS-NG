@@ -5,6 +5,10 @@
 
 global vesa_set_mode_1024x768x24
 global vesa_test_real_mode
+global vesa_get_lfb_address
+global vesa_get_mode_width
+global vesa_get_mode_height
+global vesa_get_mode_bpp
 
 section .data
     ; Save protected mode state
@@ -61,6 +65,14 @@ section .data
     ; VESA call result
     vesa_success    db 0
     test_success    db 0
+    vesa_lfb_address dd 0   ; Store the linear framebuffer address
+    vesa_found_mode dw 0    ; Store the found mode number
+    
+    ; VESA mode info structure (256 bytes buffer)
+    vesa_mode_info  times 256 db 0
+    
+    ; VESA info structure (256 bytes buffer)
+    vesa_info       times 256 db 0
 
 section .text
 
@@ -253,15 +265,75 @@ vesa_set_mode_1024x768x24:
     ; Now try enabling interrupts for BIOS calls
     sti
 
-    ; Try a simple BIOS call first to test if real mode is working
-    mov ah, 0x0E
-    mov al, 'V'
-    mov bh, 0
-    int 0x10                ; Print 'V' to test BIOS access
-
-    ; Step 8: Call BIOS INT 10h to set VESA mode 1024x768x24
+    ; Step 8A: Get VESA information to find available modes
+    mov ax, 0x4F00          ; VESA get controller info function
+    mov di, vesa_info       ; Buffer for VESA info
+    int 0x10                ; Call VESA BIOS
+    
+    ; Check if VESA info call succeeded
+    cmp ax, 0x004F
+    jne .vesa_failed
+    
+    ; Get pointer to mode list (at offset 14 in VESA info structure)
+    mov esi, [vesa_info + 14]  ; ESI = far pointer to mode list
+    
+    ; Convert far pointer to linear address (segment:offset to linear)
+    mov eax, esi
+    shr eax, 16        ; Get segment in AX
+    shl eax, 4         ; Convert segment to linear address
+    and esi, 0xFFFF    ; Get offset
+    add esi, eax       ; ESI = linear address of mode list
+    
+.search_modes:
+    ; Read next mode number from list
+    mov cx, [esi]      ; Get mode number
+    cmp cx, 0xFFFF     ; End of list marker?
+    je .vesa_failed    ; No suitable mode found
+    
+    ; Skip if mode number is 0
+    test cx, cx
+    jz .next_mode
+    
+    ; Get mode information for this mode
+    mov ax, 0x4F01          ; VESA get mode info function
+    mov di, vesa_mode_info  ; Buffer for mode info
+    int 0x10                ; Call VESA BIOS
+    
+    ; Check if get mode info succeeded
+    cmp ax, 0x004F
+    jne .next_mode
+    
+    ; Check if this mode matches our requirements:
+    ; - Width = 1024 (at offset 18)
+    ; - Height = 768 (at offset 20)  
+    ; - BPP = 16 (at offset 25)
+    ; - Linear framebuffer supported (bit 7 of attributes at offset 0)
+    
+    cmp word [vesa_mode_info + 18], 1024  ; Check width
+    jne .next_mode
+    cmp word [vesa_mode_info + 20], 768   ; Check height
+    jne .next_mode
+    cmp byte [vesa_mode_info + 25], 16    ; Check BPP
+    jne .next_mode
+    
+    ; Check if linear framebuffer is supported (bit 7 of mode attributes)
+    test byte [vesa_mode_info + 0], 0x80
+    jz .next_mode
+    
+    ; Found suitable mode! Store it and extract LFB address
+    mov [vesa_found_mode], cx
+    mov eax, [vesa_mode_info + 40]        ; LFB address at offset 40
+    mov [vesa_lfb_address], eax
+    jmp .set_mode
+    
+.next_mode:
+    add esi, 2         ; Move to next mode in list
+    jmp .search_modes
+    
+.set_mode:
+    ; Step 8B: Set the found VESA mode
     mov ax, 0x4F02          ; VESA set mode function
-    mov bx, 0x105           ; Mode 0x105 = 1024x768x16 (more compatible than 24-bit)
+    mov bx, [vesa_found_mode] ; Use the mode we found
     or bx, 0x4000           ; Set linear framebuffer bit
     int 0x10                ; Call VESA BIOS
 
@@ -269,7 +341,37 @@ vesa_set_mode_1024x768x24:
     cmp ax, 0x004F          ; VESA success code
     je .vesa_ok
     
-    ; VESA failed, mark failure
+.vesa_failed:
+    ; Fallback: try hardcoded mode 0x118 (for VMware compatibility - 1024x768x16)
+    mov ax, 0x4F01          ; VESA get mode info function
+    mov cx, 0x117           ; Mode 0x118 = 1024x768x16
+    mov di, vesa_mode_info  ; Buffer for mode info
+    int 0x10                ; Call VESA BIOS
+    
+    ; Check if get mode info succeeded
+    cmp ax, 0x004F
+    jne .complete_failure
+    
+    ; Extract LFB address from mode info
+    mov eax, [vesa_mode_info + 40]
+    mov [vesa_lfb_address], eax
+    
+    ; Set the fallback mode
+    mov ax, 0x4F02          ; VESA set mode function
+    mov bx, 0x117           ; Mode 0x118 = 1024x768x16
+    or bx, 0x4000           ; Set linear framebuffer bit
+    int 0x10                ; Call VESA BIOS
+    
+    ; Check if fallback mode succeeded
+    cmp ax, 0x004F
+    jne .complete_failure
+    
+    ; Store fallback mode number
+    mov word [vesa_found_mode], 0x118
+    jmp .vesa_ok
+
+.complete_failure:
+    ; Both dynamic and fallback failed
     mov byte [vesa_success], 0
     jmp .return_to_protected
     
@@ -341,4 +443,32 @@ vesa_set_mode_1024x768x24:
 .done:
     popad
     pop ebp
+    ret
+
+; Function: vesa_get_lfb_address
+; Purpose: Get the linear framebuffer address from the last VESA mode info call
+; Returns: EAX (LFB address)
+vesa_get_lfb_address:
+    mov eax, [vesa_lfb_address]
+    ret
+
+; Function: vesa_get_mode_width
+; Purpose: Get the mode width from the last VESA mode info call
+; Returns: EAX (width in pixels)
+vesa_get_mode_width:
+    movzx eax, word [vesa_mode_info + 18]  ; Width is at offset 18
+    ret
+
+; Function: vesa_get_mode_height  
+; Purpose: Get the mode height from the last VESA mode info call
+; Returns: EAX (height in pixels)
+vesa_get_mode_height:
+    movzx eax, word [vesa_mode_info + 20]  ; Height is at offset 20
+    ret
+
+; Function: vesa_get_mode_bpp
+; Purpose: Get the bits per pixel from the last VESA mode info call
+; Returns: EAX (bits per pixel)
+vesa_get_mode_bpp:
+    movzx eax, byte [vesa_mode_info + 25]  ; BPP is at offset 25
     ret

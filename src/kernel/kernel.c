@@ -40,7 +40,7 @@ void kernel_main(void) {
     __asm__ __volatile__("sti");
     
     kprintf("System ready.\n");
-    kprintf("Press 'g' to switch to VESA 1024x768x24 graphics mode.\n");
+    kprintf("Press 'g' to switch to VESA 1024x768x16 graphics mode.\n");
     
     // Remove the division by zero test for now since we want to test IRQs
     // int i = 1/0;
