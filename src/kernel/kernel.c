@@ -1,6 +1,8 @@
 void kernel_main(void) __attribute__((section(".text")));
 #include <stdint.h>
 #include "lib/kprintf.h"
+#include <stdint.h>
+#include "lib/kprintf.h"
 #include "interrupt/idt.h"
 #include "drivers/keyboard.h"
 #include "drivers/vga.h"

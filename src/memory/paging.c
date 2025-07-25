@@ -30,7 +30,7 @@ static void init_free_list(void) {
     kprintf("Initializing physical memory free list...\n");
     
     // Start with 1024 pages (4MB) in the free list
-    uint32_t initial_pool_size = 1024;
+    uint32_t initial_pool_size = 64;
     uint32_t pool_start = next_free_page;
     
     for (uint32_t i = 0; i < initial_pool_size; i++) {
