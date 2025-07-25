@@ -57,6 +57,7 @@ typedef struct {
 } physical_memory_manager_t;
 
 // Function declarations
+void enable_a20_gate(void);
 void paging_init(void);
 void enable_pae_paging(void);
 int map_page(uint32_t virtual_addr, uint64_t physical_addr, uint32_t flags);

@@ -25,12 +25,102 @@ static uint32_t next_free_page = HEAP_START + HEAP_SIZE;
 static uint32_t total_pages_allocated = 0;
 static uint32_t total_pages_freed = 0;
 
+// A20 gate enablement functions
+static uint8_t inb(uint16_t port) {
+    uint8_t ret;
+    __asm__ __volatile__("inb %1, %0" : "=a"(ret) : "Nd"(port));
+    return ret;
+}
+
+static void outb(uint16_t port, uint8_t val) {
+    __asm__ __volatile__("outb %0, %1" : : "a"(val), "Nd"(port));
+}
+
+static void io_wait(void) {
+    outb(0x80, 0);
+}
+
+static int test_a20(void) {
+    uint32_t *ptr1 = (uint32_t*)0x112345;  // Address above 1MB
+    uint32_t *ptr2 = (uint32_t*)0x012345;  // Corresponding address below 1MB (with A20 disabled)
+    
+    uint32_t saved = *ptr1;
+    *ptr1 = 0x12345678;
+    *ptr2 = 0x87654321;
+    
+    int result = (*ptr1 == 0x12345678) ? 1 : 0;
+    *ptr1 = saved;
+    return result;
+}
+
+static void enable_a20_keyboard(void) {
+    kprintf("Attempting keyboard controller A20 enable...\n");
+    
+    // Disable keyboard
+    outb(0x64, 0xAD);
+    
+    // Read command byte
+    outb(0x64, 0xD0);
+    while (!(inb(0x64) & 0x01));
+    uint8_t cmd = inb(0x60);
+    
+    // Set A20 bit
+    cmd |= 0x02;
+    
+    // Write command byte
+    outb(0x64, 0xD1);
+    while (inb(0x64) & 0x02);
+    outb(0x60, cmd);
+    
+    // Enable keyboard
+    outb(0x64, 0xAE);
+    
+    // Wait for command to complete
+    while (inb(0x64) & 0x02);
+}
+
+static void enable_a20_fast(void) {
+    kprintf("Attempting fast A20 enable...\n");
+    uint8_t val = inb(0x92);
+    if (!(val & 0x02)) {
+        outb(0x92, val | 0x02);
+    }
+}
+
+void enable_a20_gate(void) {
+    kprintf("Enabling A20 gate...\n");
+    
+    // Test if A20 is already enabled
+    if (test_a20()) {
+        kprintf("A20 gate already enabled.\n");
+        return;
+    }
+    
+    // Try keyboard controller method
+    enable_a20_keyboard();
+    io_wait();
+    if (test_a20()) {
+        kprintf("A20 gate enabled via keyboard controller.\n");
+        return;
+    }
+    
+    // Try fast A20 method
+    enable_a20_fast();
+    io_wait();
+    if (test_a20()) {
+        kprintf("A20 gate enabled via fast method.\n");
+        return;
+    }
+    
+    kprintf("WARNING: Failed to enable A20 gate!\n");
+}
+
 // Initialize the free list with a pool of pages
 static void init_free_list(void) {
     kprintf("Initializing physical memory free list...\n");
     
     // Start with 1024 pages (4MB) in the free list
-    uint32_t initial_pool_size = 64;
+    uint32_t initial_pool_size = 1024;
     uint32_t pool_start = next_free_page;
     
     for (uint32_t i = 0; i < initial_pool_size; i++) {

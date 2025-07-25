@@ -13,6 +13,10 @@ void kernel_main(void) {
     kclear_screen();
     kprintf("LikeOS-NG kernel booting...\n");
     kprintf("Enabled protected mode.\n");
+    
+    // Enable A20 gate early to access memory above 1MB
+    enable_a20_gate();
+    
     idt_install();
     kprintf("IDT initialized.\n");
     
