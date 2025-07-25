@@ -48,6 +48,14 @@ void keyboard_handler(uint8_t scancode) {
         // Handle special keys
         if (scancode == 0x2A || scancode == 0x36) {  // Left or right shift
             shift_pressed = 1;
+        } else if (scancode == 0x01) {  // Escape key
+            // Check if shift is also pressed for Shift+Escape combination
+            if (shift_pressed) {
+                // Switch back to text mode for debugging
+                vga_set_text_mode_80x25();
+                kprintf("\n[DEBUG] Switched back to text mode via Shift+Escape\n");
+                return;  // Don't process escape as a regular character
+            }
         } else if (scancode == 0x3A) {  // Caps lock
             caps_lock = !caps_lock;
         } else if (scancode < sizeof(scancode_to_ascii)) {

@@ -9,6 +9,8 @@ global vesa_get_lfb_address
 global vesa_get_mode_width
 global vesa_get_mode_height
 global vesa_get_mode_bpp
+global vesa_get_pitch
+global vesa_set_text_mode_80x25
 
 section .data
     ; Save protected mode state
@@ -471,4 +473,117 @@ vesa_get_mode_height:
 ; Returns: EAX (bits per pixel)
 vesa_get_mode_bpp:
     movzx eax, byte [vesa_mode_info + 25]  ; BPP is at offset 25
+    ret
+
+; Function: vesa_get_pitch
+; Returns: EAX (bytes per scanline)
+vesa_get_pitch:
+    movzx eax, word [vesa_mode_info + 16]
+    ret
+
+; Function: vesa_set_text_mode_80x25
+; Purpose: Set VGA text mode 3 (80x25) via proper real mode switching
+; Returns: EAX (0 = success, -1 = failure)
+vesa_set_text_mode_80x25:
+    push ebp
+    mov ebp, esp
+    pushad
+    
+    ; Save state
+    mov [saved_esp], esp
+    mov [saved_ebp], ebp
+    sgdt [saved_gdt_ptr]
+    sidt [saved_idt_ptr]
+    
+    ; Disable interrupts
+    cli
+    
+    ; Save and disable paging
+    mov eax, cr0
+    mov [saved_cr0], eax
+    mov eax, cr3
+    mov [saved_cr3], eax
+    
+    mov eax, [saved_cr0]
+    and eax, 0x7FFFFFFF     ; Clear PG bit
+    mov cr0, eax
+    
+    ; Load 16-bit GDT
+    lgdt [real_mode_gdt_ptr]
+    
+    ; Jump to 16-bit mode
+    jmp 0x08:.text_16bit
+    
+.text_16bit:
+    [bits 16]
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    
+    ; Enter real mode
+    mov eax, cr0
+    and al, 0xFE
+    mov cr0, eax
+    
+    jmp 0x0000:.text_real
+    
+.text_real:
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x9000
+    
+    ; Set up real mode IVT
+    lidt [real_mode_idt_ptr]
+    
+    ; Enable interrupts for BIOS call
+    sti
+    
+    ; Call BIOS interrupt 10h to set text mode
+    mov ax, 0x0003          ; Function 00h, Mode 03h (80x25 16-color text)
+    int 0x10                ; Call BIOS video services
+    
+    ; Disable interrupts for mode switch back
+    cli
+    
+    ; Return to protected mode
+    lgdt [temp_32bit_gdt_ptr]
+    mov eax, cr0
+    or al, 0x01
+    mov cr0, eax
+    jmp 0x08:.text_back_32
+    
+.text_back_32:
+    [bits 32]
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    
+    lgdt [saved_gdt_ptr]
+    lidt [saved_idt_ptr]
+    
+    ; Restore paging if needed
+    mov eax, [saved_cr0]
+    test eax, 0x80000000
+    jz .text_no_paging
+    mov eax, [saved_cr3]
+    mov cr3, eax
+    mov eax, [saved_cr0]
+    mov cr0, eax
+    
+.text_no_paging:
+    mov esp, [saved_esp]
+    mov ebp, [saved_ebp]
+    sti
+    
+    ; Return success
+    xor eax, eax
+    
+    popad
+    pop ebp
     ret

@@ -14,6 +14,8 @@ extern uint32_t vesa_get_lfb_address(void);
 extern uint32_t vesa_get_mode_width(void);
 extern uint32_t vesa_get_mode_height(void);
 extern uint32_t vesa_get_mode_bpp(void);
+extern uint32_t vesa_get_pitch(void);
+extern int vesa_set_text_mode_80x25(void);
 
 // VGA driver state
 static int current_mode = 0;  // 0 = text, 1 = VESA graphics
@@ -152,4 +154,17 @@ int vga_get_mode(void) {
 // Get the linear framebuffer address
 uint32_t vga_get_lfb_address(void) {
     return vesa_get_lfb_address();
+}
+
+// Switch back to VGA text mode (80x25, 16 color)
+void vga_set_text_mode_80x25(void) {
+    // Call the assembly function that does proper real mode switching
+    int result = vesa_set_text_mode_80x25();
+    
+    if (result == 0) {
+        current_mode = 0;  // Set mode back to text
+        kprintf("VGA: Switched back to 80x25 text mode\n");
+    } else {
+        kprintf("VGA: Failed to switch to text mode\n");
+    }
 }
