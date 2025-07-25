@@ -90,8 +90,7 @@ void keyboard_handler(uint8_t scancode) {
                         // Mode set successfully, blue screen is drawn automatically
                         // We're now in graphics mode - no more text output will be visible
                     } else {
-                        kprintf("VESA mode failed, halting...\n");
-                        for (;;) { __asm__ __volatile__("hlt"); }
+                        kprintf("VESA mode failed.\n");
                     }
                 } else {
                     kputchar(ascii);

@@ -9,7 +9,6 @@
 
 // External assembly functions
 extern int vesa_set_mode_1024x768(void);
-extern int vesa_test_real_mode(void);
 extern uint32_t vesa_get_lfb_address(void);
 extern uint32_t vesa_get_mode_width(void);
 extern uint32_t vesa_get_mode_height(void);
@@ -26,21 +25,6 @@ int vga_init(void) {
     current_mode = 0;  // Start in text mode
     kprintf("VGA: Driver initialized in text mode\n");
     return 0;
-}
-
-// Test real mode switching before attempting VESA
-int vga_test_real_mode_switching(void) {
-    kprintf("VGA: Testing real mode switching...\n");
-    
-    int result = vesa_test_real_mode();
-    
-    if (result == 0) {
-        kprintf("VGA: Real mode switching test PASSED\n");
-        return 0;
-    } else {
-        kprintf("VGA: Real mode switching test FAILED\n");
-        return -1;
-    }
 }
 
 // Set VESA 1024x768x32 mode
@@ -65,7 +49,7 @@ int vga_set_vesa_mode_1024x768(void) {
         current_mode = 1;
         
         // Draw screen immediately - no debug output after this point
-        vga_clear_screen_blue_immediate();
+        vga_clear_screen();
         
         return 0;
     } else {
@@ -74,8 +58,8 @@ int vga_set_vesa_mode_1024x768(void) {
     }
 }
 
-// Draw blue screen immediately without any debug output (for use after VESA mode switch)
-void vga_clear_screen_blue_immediate(void) {
+// Clear screen immediately without any debug output (for use after VESA mode switch)
+void vga_clear_screen_(void) {
     // Get the actual mode information from VESA BIOS
     uint32_t lfb_addr = vesa_get_lfb_address();
     uint32_t width = vesa_get_mode_width();
@@ -135,15 +119,15 @@ void vga_clear_screen_blue_immediate(void) {
     }
 }
 
-// Clear screen to blue color (legacy function with debug output)
-void vga_clear_screen_blue(void) {
+// Clear screen (legacy function with debug output)
+void vga_clear_screen(void) {
     if (current_mode != 1) {
-        kprintf("VGA: Not in VESA graphics mode, cannot clear to blue\n");
+        kprintf("VGA: Not in VESA graphics mode, cannot clear\n");
         return;
     }
     
     // Just call the immediate version
-    vga_clear_screen_blue_immediate();
+    vga_clear_screen_();
 }
 
 // Get current mode

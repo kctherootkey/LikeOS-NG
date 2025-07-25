@@ -4,7 +4,6 @@
 [bits 32]
 
 global vesa_set_mode_1024x768
-global vesa_test_real_mode
 global vesa_get_lfb_address
 global vesa_get_mode_width
 global vesa_get_mode_height
@@ -77,111 +76,6 @@ section .data
     vesa_info       times 256 db 0
 
 section .text
-
-; Function: vesa_test_real_mode
-; Purpose: Test if real mode switching works safely
-; Returns: EAX (0 = success, -1 = failure)
-vesa_test_real_mode:
-    push ebp
-    mov ebp, esp
-    pushad
-    
-    ; Save state
-    mov [saved_esp], esp
-    mov [saved_ebp], ebp
-    sgdt [saved_gdt_ptr]
-    sidt [saved_idt_ptr]
-    
-    ; Disable interrupts
-    cli
-    
-    ; Save and disable paging
-    mov eax, cr0
-    mov [saved_cr0], eax
-    mov eax, cr3
-    mov [saved_cr3], eax
-    
-    mov eax, [saved_cr0]
-    and eax, 0x7FFFFFFF     ; Clear PG bit
-    mov cr0, eax
-    
-    ; Load 16-bit GDT
-    lgdt [real_mode_gdt_ptr]
-    
-    ; Jump to 16-bit mode
-    jmp 0x08:.test_16bit
-    
-.test_16bit:
-    [bits 16]
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-    
-    ; Enter real mode
-    mov eax, cr0
-    and al, 0xFE
-    mov cr0, eax
-    
-    jmp 0x0000:.test_real
-    
-.test_real:
-    xor ax, ax
-    mov ds, ax
-    mov es, ax
-    mov ss, ax
-    mov sp, 0x9000
-    
-    ; Don't enable interrupts in test - just mark success and return
-    ; This tests if real mode switching works without risking interrupt issues
-    mov byte [test_success], 1
-    
-    ; Return to protected mode
-    cli
-    lgdt [temp_32bit_gdt_ptr]
-    mov eax, cr0
-    or al, 0x01
-    mov cr0, eax
-    jmp 0x08:.test_back_32
-    
-.test_back_32:
-    [bits 32]
-    mov ax, 0x10
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-    mov ss, ax
-    
-    lgdt [saved_gdt_ptr]
-    lidt [saved_idt_ptr]
-    
-    ; Restore paging if needed
-    mov eax, [saved_cr0]
-    test eax, 0x80000000
-    jz .test_no_paging
-    mov eax, [saved_cr3]
-    mov cr3, eax
-    mov eax, [saved_cr0]
-    mov cr0, eax
-    
-.test_no_paging:
-    mov esp, [saved_esp]
-    mov ebp, [saved_ebp]
-    sti
-    
-    ; Check result
-    mov al, [test_success]
-    test al, al
-    jnz .test_ok
-    mov eax, -1
-    jmp .test_done
-.test_ok:
-    xor eax, eax
-.test_done:
-    popad
-    pop ebp
-    ret
 
 ; Function: vesa_set_mode_1024x768
 ; Purpose: Set VESA mode 1024x768 via proper real mode switching
