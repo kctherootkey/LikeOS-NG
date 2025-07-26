@@ -49,7 +49,9 @@ void kernel_main(void) {
     // Enable interrupts
     __asm__ __volatile__("sti");
     
-    kprintf("System ready.\n");
+    kprintf("System ready.\n");    
+
+#if 0
     kprintf("Switching to VESA 1024x768 graphics mode in 3 seconds...\n");
     
     // Countdown with accurate timing
@@ -62,8 +64,10 @@ void kernel_main(void) {
     // Automatically switch to VESA mode
     kprintf("Switching to VESA mode now...\n");
     vga_set_vesa_mode_1024x768();
-    
+
     // After VESA mode switch, kprintf won't work anymore
     // Just halt the system
+#endif
+
     for (;;) { __asm__ __volatile__("hlt"); }
 }
