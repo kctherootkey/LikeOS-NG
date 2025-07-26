@@ -108,10 +108,8 @@ $(FLOPPY_IMG): $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED)
 $(ISO_IMG): $(FLOPPY_IMG)
 	mkdir -p iso_root/boot
 	cp $(FLOPPY_IMG) iso_root/boot/boot.img
-	# Create El Torito bootable ISO with floppy emulation and hybrid support
-	genisoimage -R -J -c boot/boot.cat -b boot/boot.img -no-emul-boot -boot-load-size 4 -V "LikeOS-NG" -o $(ISO_IMG) iso_root/
-	# Make it hybrid bootable (works with USB)
-	isohybrid $(ISO_IMG) 2>/dev/null || echo "isohybrid not available, ISO may not be USB bootable"
+	# Create El Torito bootable ISO with floppy emulation
+	genisoimage -R -J -c boot/boot.cat -b boot/boot.img -V "LikeOS-NG" -o $(ISO_IMG) iso_root/
 	rm -rf iso_root/
 
 # Create a raw USB-bootable image (alternative to ISO)
