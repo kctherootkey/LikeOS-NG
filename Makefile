@@ -38,9 +38,17 @@ PMM_OBJ=pmm.o
 VGA_OBJ=vga.o
 VESA_BIOS_OBJ=vesa_bios.o
 
-.PHONY: all clean run
+# Floppy image and ISO image
+FLOPPY_IMG=floppy.img
+ISO_IMG=likeos.iso
+
+.PHONY: all clean run iso run-iso floppy
 
 all: $(OS_IMG)
+
+floppy: $(FLOPPY_IMG)
+
+iso: $(ISO_IMG)
 
 $(BOOTLOADER_BIN): $(BOOTLOADER)
 	$(AS) -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
@@ -86,8 +94,30 @@ $(KERNEL_BIN_PADDED): $(KERNEL_BIN)
 $(OS_IMG): $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED)
 	cat $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED) > $(OS_IMG)
 
+$(FLOPPY_IMG): $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED)
+	# Create a 1.44MB floppy image
+	dd if=/dev/zero of=$(FLOPPY_IMG) bs=512 count=2880
+	# Copy bootloader to first sector
+	dd if=$(BOOTLOADER_BIN) of=$(FLOPPY_IMG) conv=notrunc
+	# Copy kernel starting at sector 2 (as expected by bootloader)
+	dd if=$(KERNEL_BIN_PADDED) of=$(FLOPPY_IMG) bs=512 seek=1 conv=notrunc
+
+$(ISO_IMG): $(FLOPPY_IMG)
+	mkdir -p iso_root/boot
+	cp $(FLOPPY_IMG) iso_root/boot/boot.img
+	# Create El Torito bootable ISO with floppy emulation
+	genisoimage -R -J -c boot/boot.cat -b boot/boot.img -V "LikeOS-NG" -o $(ISO_IMG) iso_root/
+	rm -rf iso_root/
+
 run: $(OS_IMG)
 	qemu-system-x86_64 -drive format=raw,file=$(OS_IMG)
 
+run-floppy: $(FLOPPY_IMG)
+	qemu-system-x86_64 -fda $(FLOPPY_IMG)
+
+run-iso: $(ISO_IMG)
+	qemu-system-x86_64 -cdrom $(ISO_IMG)
+
 clean:
 	rm -f *.o *.bin *.img kernel_padded.bin kernel.elf
+	rm -f $(FLOPPY_IMG) $(ISO_IMG)
