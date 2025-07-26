@@ -41,14 +41,17 @@ VESA_BIOS_OBJ=vesa_bios.o
 # Floppy image and ISO image
 FLOPPY_IMG=floppy.img
 ISO_IMG=likeos.iso
+USB_IMG=likeos_usb.img
 
-.PHONY: all clean run iso run-iso floppy
+.PHONY: all clean run iso run-iso floppy usb-img usb run-usb
 
 all: $(OS_IMG)
 
 floppy: $(FLOPPY_IMG)
 
 iso: $(ISO_IMG)
+
+usb-img: $(USB_IMG)
 
 $(BOOTLOADER_BIN): $(BOOTLOADER)
 	$(AS) -f bin $(BOOTLOADER) -o $(BOOTLOADER_BIN)
@@ -105,9 +108,20 @@ $(FLOPPY_IMG): $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED)
 $(ISO_IMG): $(FLOPPY_IMG)
 	mkdir -p iso_root/boot
 	cp $(FLOPPY_IMG) iso_root/boot/boot.img
-	# Create El Torito bootable ISO with floppy emulation
-	genisoimage -R -J -c boot/boot.cat -b boot/boot.img -V "LikeOS-NG" -o $(ISO_IMG) iso_root/
+	# Create El Torito bootable ISO with floppy emulation and hybrid support
+	genisoimage -R -J -c boot/boot.cat -b boot/boot.img -no-emul-boot -boot-load-size 4 -V "LikeOS-NG" -o $(ISO_IMG) iso_root/
+	# Make it hybrid bootable (works with USB)
+	isohybrid $(ISO_IMG) 2>/dev/null || echo "isohybrid not available, ISO may not be USB bootable"
 	rm -rf iso_root/
+
+# Create a raw USB-bootable image (alternative to ISO)
+$(USB_IMG): $(BOOTLOADER_BIN) $(KERNEL_BIN_PADDED)
+	# Create a 16MB raw image for USB
+	dd if=/dev/zero of=$(USB_IMG) bs=1M count=16
+	# Copy bootloader to first sector
+	dd if=$(BOOTLOADER_BIN) of=$(USB_IMG) conv=notrunc
+	# Copy kernel starting at sector 2
+	dd if=$(KERNEL_BIN_PADDED) of=$(USB_IMG) bs=512 seek=1 conv=notrunc
 
 run: $(OS_IMG)
 	qemu-system-x86_64 -drive format=raw,file=$(OS_IMG)
@@ -118,6 +132,9 @@ run-floppy: $(FLOPPY_IMG)
 run-iso: $(ISO_IMG)
 	qemu-system-x86_64 -cdrom $(ISO_IMG)
 
+run-usb: $(USB_IMG)
+	qemu-system-x86_64 -drive format=raw,file=$(USB_IMG)
+
 clean:
 	rm -f *.o *.bin *.img kernel_padded.bin kernel.elf
-	rm -f $(FLOPPY_IMG) $(ISO_IMG)
+	rm -f $(FLOPPY_IMG) $(ISO_IMG) $(USB_IMG)
